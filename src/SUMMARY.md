@@ -36,6 +36,7 @@
 - [Layout\*](architecture/layout.md)
 - [Compositor\*](architecture/compositor.md)
 - [WebXR\*](architecture/webxr.md)
+- [DevTools](architecture/devtools.md)
 
 # Meta
 
