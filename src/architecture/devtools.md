@@ -28,13 +28,70 @@ The next best place to look is the [official documentation](https://firefox-sour
 
 Another helpful resource was the [geckordp](https://github.com/jpramosi/geckordp) repository, a reimplementation of Firefox's side of the DevTools RPD. Not only is it useful to test certain features in Servo by crafting specific queries, but their developer documentation is very simple to understand.
 
+TODO: Event messages
+
 ## How to debug messages
 
-A very helpful step when developing this part of the engine is being able to see the messages being sent and received through the RPD protocol. Servo can easily show these by enabling the correct [logging level](https://docs.rs/env_logger/latest/env_logger/#enabling-logging) when running the browser. For example, this will show DevTools messages that match the "debug" level or higher, and set the minimum for other crates to "error".
+An important step when developing this part of the engine is being able to see the messages being sent and received through the RPD protocol. Servo can easily show these by enabling the correct [logging level](https://docs.rs/env_logger/latest/env_logger/#enabling-logging) when running the browser. For example, this will show DevTools messages that match the "debug" level or higher, and set the minimum for other crates to "error".
 
 ```sh
 RUST_LOG="error,devtools=debug" ./mach run --devtools=6080
 ```
 
+This is an example of how the logs look:
+
+```
+[DEBUG devtools::protocol] {"type":"getRoot","to":"root"}
+[DEBUG devtools::protocol] <- {"from":"root","selected":0,"performanceActor":"performance0","deviceActor":"device1","preferenceActor":"preference2"}
+[DEBUG devtools::protocol] {"type":"getDescription","to":"device1"}
+[DEBUG devtools::protocol] <- {"from":"device1","value":{"apptype":"servo","version":"0.0.1","appbuildid":"20240904155424","platformversion":"125.0","brandName":"Servo"}}
+[DEBUG devtools::actors::console] unrecognized message type requested: "LogMessage"
+```
+
+The messages that have an arrow (`<-`) are the responses from Servo to the browser, while the ones without it are the requests from the browser. The latter always contain the `type` of the message and which actor they are sent `to`. They will also show if a message sent to an actor is unrecognized. This usually means that this feature is not handled yet, and that it should be added to the `match` statement of the actor.
+
+These logs can be very useful for checking that everything is encoded correctly. However, when it comes to knowing what a new message looks like, it can be helpful to look at how it is supposed to look. For this, we can inspect the connection between two instances of Firefox. One of them is the same that we configured before, and the other one is replacing Servo as the devtools server.
+
+For this we first need to configure this new instance. One vital issue is that it requires a different profile than the other instance. For this, you can use the [developer version of Firefox](CITATION), which already comes with a different profile, or create one (TODO: INSERT INSTRUCTIONS). Assumming that your profile is called `debug` and it is located in the default directory, you can start this new instance as follows:
+
+```sh
+firefox --new-instance --start-debugger-server 6080 --profile ~/.mozilla/firefox/debug
+```
+
+TODO: ABOUT::CONFIG
+
 - Debug logs servo
 - Using wireshark
+- Browser console
+
+## Write messages in rust
+
+To convert Rust data to JSON messages we use [serde](CITATION). Using the `Serialize` derive macro it can do it automatically for us. Replies are sent from each of the `handle_message` branches, using the `TcpStream::write_json_packet` function, which takes a serializable item as the parameter.
+
+```rust
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SomeReply {
+    from: String,
+    #[serde(rename = "type")]
+    type_: String,
+    long_variable: u32,
+    #[serde(rename = "browsingContextID")]
+    browsing_context_id: u32,
+}
+```
+
+```json
+{
+    from: "",
+    type: "",
+    longVariable: 0,
+    browsingContextID: 0
+}
+```
+
+## Communication between devtools and script
+
+## API Changes
+
+- Which version are we targeting
